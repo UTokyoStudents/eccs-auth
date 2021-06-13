@@ -1,6 +1,13 @@
 
 require('dotenv').config();
 
+/* Definitions */
+const ECCS_HOSTED_DOMAIN = 'g.ecc.u-tokyo.ac.jp';
+const ECCS_ID_PATTERN = /^([0-9]{10})@g\.ecc\.u-tokyo\.ac\.jp$/;
+
+const DOMAIN = 'u-tokyo.app.';
+
+
 const sign = (data) => {
     const hmac = crypto.createHmac('sha256', process.env.SESSION_KEY);
     hmac.update(data);
@@ -32,6 +39,9 @@ const scopes = [
 
 google.options({auth: oauth2Client});
 
+const oauth2 = google.oauth2('v2');
+const people = google.people('v1');
+
 router.get('/', (ctx, next) => {
     const data = ctx.cookies.get('utokyo.credentials') || '';
     const providedSignature = ctx.cookies.get('utokyo.credentials.sig') || '';
@@ -49,24 +59,50 @@ router.get('/login', (ctx, next) => {
         access_type: 'online',
         scope: scopes,
     });
-    ctx.redirect(url);
+    ctx.redirect(url + '&hd=' + ECCS_HOSTED_DOMAIN);
 });
 
 router.get('/auth', async (ctx, next) => {
-    const code = ctx.query.code;
-    const {tokens} = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-    const oauth2 = google.oauth2('v2');
-    const profile = (await oauth2.userinfo.get({})).data;
-    const credentials = {
-        profile: profile,
-        tokens: tokens,
-    };
-    const data = JSON.stringify(credentials);
-    const signature = sign(data);
-    ctx.cookies.set('utokyo.credentials', data);
-    ctx.cookies.set('utokyo.credentials.sig', signature);
-    ctx.redirect('/');
+    try {
+        const code = ctx.query.code;
+        const {tokens} = await oauth2Client.getToken(code);
+        oauth2Client.setCredentials(tokens);
+        const person = (await people.people.get({
+            resourceName: 'people/me',
+            personFields: 'emailAddresses',
+        })).data;
+
+        const utokyoIds = [];
+        for (const obj of person.emailAddresses) {
+            if ('string' != typeof obj.value) continue;
+            const matches = obj.value.match(ECCS_ID_PATTERN);
+            if (matches) {
+                utokyoIds.push(matches[1]);
+            }
+        }
+
+        if (utokyoIds.length < 1) {
+            throw new Error('No UTokyo account ID available for account');
+        }
+
+        const credentials = {
+            utokyo_id: utokyoIds[0],
+            email_addresses: person.emailAddresses.map(obj => obj.value).filter(value => 'string' == typeof value),
+        };
+
+        const data = JSON.stringify(credentials);
+        const signature = sign(data);
+        ctx.cookies.set('utokyo.credentials', data);
+        ctx.cookies.set('utokyo.credentials.sig', signature);
+        ctx.redirect('/');
+    } catch (e) {
+        console.error(e);
+        ctx.body = JSON.stringify({
+            error: e + '',
+        });
+        ctx.type = 'json';
+    }
+    
 });
 
 app
