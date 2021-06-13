@@ -57,7 +57,7 @@ router.get('/auth', async (ctx, next) => {
     const {tokens} = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
     const oauth2 = google.oauth2('v2');
-    const profile = await oauth2.userinfo.get({});
+    const profile = (await oauth2.userinfo.get({})).data;
     const credentials = {
         profile: profile,
         tokens: tokens,
