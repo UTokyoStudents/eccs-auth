@@ -33,8 +33,8 @@ const scopes = [
 google.options({auth: oauth2Client});
 
 router.get('/', (ctx, next) => {
-    const data = ctx.cookies.get('utokyo.credentials');
-    const providedSignature = ctx.cookies.get('utokyo.credentials.sig');
+    const data = ctx.cookies.get('utokyo.credentials') || '';
+    const providedSignature = ctx.cookies.get('utokyo.credentials.sig') || '';
     const signature = sign(data);
     if (signature == providedSignature) {
         ctx.body = data;
