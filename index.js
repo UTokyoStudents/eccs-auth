@@ -1,9 +1,67 @@
+// vim: ts=4 sw=4 et ai
 
 require('dotenv').config();
+const { Sequelize, DataTypes } = require('sequelize');
 
 /* Definitions */
 const ECCS_HOSTED_DOMAIN = 'g.ecc.u-tokyo.ac.jp';
 const ECCS_ID_PATTERN = /^([0-9]{10})@g\.ecc\.u-tokyo\.ac\.jp$/;
+
+const {
+    MARIADB_DB,
+    MARIADB_USER,
+    MARIADB_PASS,
+} = process.env;
+
+const sequelize = new Sequelize(MARIADB_DB, MARIADB_USER, MARIADB_PASS, {
+    host: 'localhost',
+    dialect: 'mariadb',
+});
+
+const User = sequelize.define('User', {
+    // SAEC Account ID
+    userId: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        defaultValue: DataTypes.UUIDV4,
+        unique: true,
+    },
+
+    // UTokyo Account ID (10 digits)
+    eccsId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+
+    // Student ID
+    studentId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+
+    // This is not unique.
+    userName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+
+    // milliseconds since UNIX epoch
+    eccsTimestamp: {
+        type: DataTypes.DOUBLE,
+        allowNull: true,
+    },
+
+    emailAddress: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+}, {});
+
+sequelize.sync({alter: true}).then(() => {
+    console.log('Database synced');
+}).catch((e) => {
+    console.error('Database sync failed');
+});
 
 const DOMAIN = 'u-tokyo.app.';
 
